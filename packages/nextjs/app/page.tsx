@@ -8,7 +8,7 @@ const Home = () => {
       <div className="px-5">
         <h1 className="text-center">
           <span className="block text-2xl mb-2">Welcome to</span>
-          <span className="block text-4xl font-bold">Scaffold-Stark 2</span>
+          <span className="block text-4xl font-bold">ZK CERTIFICARE</span>
         </h1>
         <ConnectedAddress />
         <p className="text-center text-lg">

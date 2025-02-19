@@ -77,7 +77,7 @@ export const Footer = () => {
                 rel="noreferrer"
                 className="link"
               >
-                Fork me
+                
               </a>
             </div>
 
@@ -88,7 +88,7 @@ export const Footer = () => {
                 rel="noreferrer"
                 className="link"
               >
-                Support
+                
               </a>
             </div>
           </div>
