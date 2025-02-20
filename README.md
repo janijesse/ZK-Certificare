@@ -36,4 +36,5 @@ Aplicación descentralizada (dApp) construida sobre la red StarkNet que permite 
 - Automatización de verificaciones para empresas y universidades.
 - Extensión a otras certificaciones, como diplomas y credenciales profesionales.
 
-Enlace al prototipo https://zk-certificare-vercel.vercel.app/
+## Enlace al prototipo
+https://zk-certificare-vercel.vercel.app/
