@@ -1,104 +1,170 @@
+%lang starknet
 #[starknet::interface]
-pub trait IYourContract<TContractState> {
-    fn greeting(self: @TContractState) -> ByteArray;
-    fn set_greeting(ref self: TContractState, new_greeting: ByteArray, amount_eth: u256);
-    fn withdraw(ref self: TContractState);
-    fn premium(self: @TContractState) -> bool;
+
+from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.hash import hash2
+from starkware.starknet.common.syscalls import get_caller_address
+
+struct Certificate {
+    institution_id: felt,
+    student_id: felt,
+    certificate_hash: felt,
+    issue_date: felt,
 }
 
-#[starknet::contract]
-mod YourContract {
-    use openzeppelin_access::ownable::OwnableComponent;
-    use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::storage::Map;
-    use starknet::{ContractAddress, contract_address_const};
-    use starknet::{get_caller_address, get_contract_address};
-    use super::{IYourContract};
+struct ZKProof {
+    certificate_id: felt,
+    proof_data: felt,
+    is_valid: felt,
+}
 
-    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+@storage_var
+func certificates(certificate_id: felt) -> (certificate: Certificate) {
+}
 
-    #[abi(embed_v0)]
-    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-    impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+@storage_var
+func proofs(proof_id: felt) -> (proof: ZKProof) {
+}
 
-    const ETH_CONTRACT_ADDRESS: felt252 =
-        0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7;
+@storage_var
+func institution_registry(address: felt) -> (is_registered: felt) {
+}
 
-    #[event]
-    #[derive(Drop, starknet::Event)]
-    enum Event {
-        #[flat]
-        OwnableEvent: OwnableComponent::Event,
-        GreetingChanged: GreetingChanged,
-    }
+@storage_var
+func owner() -> (address: felt) {
+}
 
-    #[derive(Drop, starknet::Event)]
-    struct GreetingChanged {
-        #[key]
-        greeting_setter: ContractAddress,
-        #[key]
-        new_greeting: ByteArray,
-        premium: bool,
-        value: u256,
-    }
+@event
+func CertificateIssued(certificate_id: felt, student_id: felt) {
+}
 
-    #[storage]
-    struct Storage {
-        greeting: ByteArray,
-        premium: bool,
-        total_counter: u256,
-        user_greeting_counter: Map<ContractAddress, u256>,
-        #[substorage(v0)]
-        ownable: OwnableComponent::Storage,
-    }
+@event
+func ProofGenerated(proof_id: felt, certificate_id: felt) {
+}
 
-    #[constructor]
-    fn constructor(ref self: ContractState, owner: ContractAddress) {
-        self.greeting.write("Building Unstoppable Apps!!!");
-        self.ownable.initializer(owner);
-    }
+@constructor
+func constructor{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(admin_address: felt) {
+    owner.write(admin_address);
+    return ();
+}
 
-    #[abi(embed_v0)]
-    impl YourContractImpl of IYourContract<ContractState> {
-        fn greeting(self: @ContractState) -> ByteArray {
-            self.greeting.read()
-        }
-        fn set_greeting(ref self: ContractState, new_greeting: ByteArray, amount_eth: u256) {
-            self.greeting.write(new_greeting);
-            self.total_counter.write(self.total_counter.read() + 1);
-            let user_counter = self.user_greeting_counter.read(get_caller_address());
-            self.user_greeting_counter.write(get_caller_address(), user_counter + 1);
+@external
+func register_institution{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(institution_address: felt) {
+    let (current_owner) = owner.read();
+    let (caller) = get_caller_address();
+    assert caller = current_owner;
+    
+    institution_registry.write(institution_address, 1);
+    return ();
+}
 
-            if amount_eth > 0 {
-                // In `Debug Contract` or UI implementation call `approve` on ETH contract before
-                // invoke fn set_greeting()
-                let eth_contract_address = contract_address_const::<ETH_CONTRACT_ADDRESS>();
-                let eth_dispatcher = IERC20Dispatcher { contract_address: eth_contract_address };
-                eth_dispatcher
-                    .transfer_from(get_caller_address(), get_contract_address(), amount_eth);
-                self.premium.write(true);
-            } else {
-                self.premium.write(false);
-            }
-            self
-                .emit(
-                    GreetingChanged {
-                        greeting_setter: get_caller_address(),
-                        new_greeting: self.greeting.read(),
-                        premium: true,
-                        value: 100,
-                    },
-                );
-        }
-        fn withdraw(ref self: ContractState) {
-            self.ownable.assert_only_owner();
-            let eth_contract_address = contract_address_const::<ETH_CONTRACT_ADDRESS>();
-            let eth_dispatcher = IERC20Dispatcher { contract_address: eth_contract_address };
-            let balance = eth_dispatcher.balance_of(get_contract_address());
-            eth_dispatcher.transfer(self.ownable.owner(), balance);
-        }
-        fn premium(self: @ContractState) -> bool {
-            self.premium.read()
-        }
+@external
+func issue_certificate{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(
+    certificate_id: felt,
+    student_id: felt,
+    certificate_hash: felt,
+    issue_date: felt
+) {
+    let (caller) = get_caller_address();
+    let (is_registered) = institution_registry.read(caller);
+    assert is_registered = 1;
+    
+    let certificate = Certificate(
+        institution_id=caller,
+        student_id=student_id,
+        certificate_hash=certificate_hash,
+        issue_date=issue_date
+    );
+    
+    certificates.write(certificate_id, certificate);
+    
+    CertificateIssued.emit(certificate_id, student_id);
+    
+    return ();
+}
+
+@external
+func generate_proof{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(
+    proof_id: felt,
+    certificate_id: felt,
+    proof_data: felt
+) {
+    let (certificate) = certificates.read(certificate_id);
+    assert certificate.certificate_hash != 0;
+    
+    let proof = ZKProof(
+        certificate_id=certificate_id,
+        proof_data=proof_data,
+        is_valid=1
+    );
+    
+    proofs.write(proof_id, proof);
+    
+    ProofGenerated.emit(proof_id, certificate_id);
+    
+    return ();
+}
+
+@external
+func verify_certificate{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(
+    proof_id: felt, 
+    check_value: felt
+) -> (result: felt) {
+    let (proof) = proofs.read(proof_id);
+    assert proof.proof_data != 0;
+    
+    let verification_result = simple_verify(proof.proof_data, check_value);
+    
+    return (verification_result);
+}
+
+@view
+func get_certificate{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(certificate_id: felt) -> (certificate: Certificate) {
+    let (certificate) = certificates.read(certificate_id);
+    return (certificate,);
+}
+
+@view
+func get_proof{
+    syscall_ptr: felt*,
+    pedersen_ptr: HashBuiltin*,
+    range_check_ptr
+}(proof_id: felt) -> (proof: ZKProof) {
+    let (proof) = proofs.read(proof_id);
+    return (proof,);
+}
+
+func simple_verify(
+    proof_data: felt,
+    input: felt
+) -> (result: felt) {
+    if (proof_data == input) {
+        return (1,);
+    } else {
+        return (0,);
     }
 }

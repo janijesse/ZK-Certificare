@@ -5,7 +5,7 @@ import { ThemeProvider } from "~~/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "ZK CERTIFICARE BY César & Jani",
-  description: "Fast track your starknet journey",
+  description: "Validación de Certificados Analíticos",
   icons: "/logo.ico",
 };
 
